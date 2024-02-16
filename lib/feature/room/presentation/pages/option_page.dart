@@ -32,7 +32,7 @@ class ScreenOption extends StatelessWidget {
                 style: AppText.appTextSmall),
             const SizedBox(height: 25),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).push(MaterialPageRoute(
                     builder: (context) => ScreenCreateSpot()));
               },
@@ -41,8 +41,8 @@ class ScreenOption extends StatelessWidget {
             const SizedBox(height: 20),
             OutlinedButton(
               onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (context) =>  ScreenJoinSpot()));
+                Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => ScreenJoinSpot()));
               },
               child: const Text('Join Spot'),
             ),

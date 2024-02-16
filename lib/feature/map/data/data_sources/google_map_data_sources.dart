@@ -1,4 +1,4 @@
-import 'package:trudd_track_your_buddy/core/constants/map.dart';
+import 'package:trudd_track_your_buddy/core/constants/keys.dart';
 import 'package:trudd_track_your_buddy/core/network/network_service.dart';
 import 'package:trudd_track_your_buddy/core/utils/typedef.dart';
 

@@ -4,16 +4,15 @@ import 'package:trudd_track_your_buddy/core/utils/typedef.dart';
 import 'package:trudd_track_your_buddy/feature/map/data/data_sources/google_map_data_sources.dart';
 import 'package:trudd_track_your_buddy/feature/map/data/models/place_model.dart';
 import 'package:trudd_track_your_buddy/feature/map/domain/entities/place_entities.dart';
-import 'package:trudd_track_your_buddy/feature/map/domain/repositories/map_repositories.dart';
+import 'package:trudd_track_your_buddy/feature/map/domain/repositories/google_repositories.dart';
 
-class MapRepositoryImpl extends MapRepository {
+class GoogleRepositoryImpl extends GoogleRepository {
   @override
   FailureOrPlaces getSearchResults(String query) async {
     final googlDataSource = GMapDataSource();
     List<PlaceEntity> places = [];
     final response = await googlDataSource.getSearchResults(query);
     final result = response.fold((error) {
-      print('-----------error $error');
       return error;
     }, (data) {
       // print('---------------------------- $data ');

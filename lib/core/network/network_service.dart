@@ -34,6 +34,7 @@ class NetworkService {
     } on http.ClientException {
       // return Left(RequestTimeOUtException());
     } catch (e) {
+      print(e);
       return Left(BadRequestException());
     }
     return Right(fetchedData);
@@ -45,8 +46,6 @@ class NetworkService {
     dynamic fetchedData;
     try {
       final response = await http.get(uri, headers: _headers);
-      print(response.statusCode);
-      print(response.body);
       fetchedData = _getResponse(response);
     } on SocketException {
       return Left(InternetException());
@@ -58,10 +57,9 @@ class NetworkService {
     return Right(fetchedData);
   }
 
-  static EitherResponse putApi(var rawData, String url, String token) async {
+  static EitherResponse putApi(var rawData, String url) async {
     final uri = Uri.parse(url);
     final body = jsonEncode(rawData);
-    _headers['vendortoken'] = token;
     dynamic fetchedData;
 
     try {
@@ -72,6 +70,7 @@ class NetworkService {
     } on http.ClientException {
       // return Left(RequestTimeOUtException());
     } catch (e) {
+      print(e);
       return Left(BadRequestException());
     }
     return Right(fetchedData);

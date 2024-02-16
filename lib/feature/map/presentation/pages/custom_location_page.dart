@@ -11,10 +11,10 @@ import '../widgets/result_viewer.dart';
 import '../widgets/search_bar.dart';
 
 class ScreenCustomLocation extends StatelessWidget {
-  ScreenCustomLocation({super.key});
+  ScreenCustomLocation({super.key, required this.location});
+  final LatLng location;
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
-
   @override
   Widget build(BuildContext context) {
     final dheight = MediaQuery.sizeOf(context).height;
@@ -38,8 +38,8 @@ class ScreenCustomLocation extends StatelessWidget {
                       Set<Marker> marker =
                           (state is MapLocationSetState) ? {state.marker} : {};
                       return GoogleMap(
-                        initialCameraPosition: const CameraPosition(
-                          target: LatLng(12.9716, 77.5946),
+                        initialCameraPosition: CameraPosition(
+                          target: location,
                           zoom: 13,
                         ),
                         onMapCreated: (controller) async {
@@ -53,21 +53,10 @@ class ScreenCustomLocation extends StatelessWidget {
                           await controller.setMapStyle(darkTheme);
                           _controller.complete(controller);
                         },
-
                         compassEnabled: false,
                         zoomControlsEnabled: false,
                         zoomGesturesEnabled: true,
                         markers: marker,
-                        //  {
-                        //   const Marker(
-                        //       markerId: MarkerId('marker1'),
-                        //       icon: BitmapDescriptor.defaultMarker,
-                        //       position: LatLng(37.378653930044955, -122.06901434808968)),
-                        //   const Marker(
-                        //       markerId: MarkerId('marker2'),
-                        //       icon: BitmapDescriptor.defaultMarker,
-                        //       position: LatLng(37.3944735902599, -122.09853775799274))
-                        // },
                         onTap: (LatLng pos) {
                           context
                               .read<SearchBloc>()
@@ -101,7 +90,6 @@ class ScreenCustomLocation extends StatelessWidget {
                         );
                       },
                     ),
-                    // const SizedBox(height: 5),
                   ],
                 ),
               )
@@ -111,16 +99,4 @@ class ScreenCustomLocation extends StatelessWidget {
       ),
     );
   }
-
-  // String getFirstName(String input) {
-  //   List<String> parts = input.split(RegExp(r'[, ]'));
-
-  //   // Find the first non-empty and non-whitespace part
-  //   String firstNonEmptyPart = parts.firstWhere(
-  //     (part) => part.trim().isNotEmpty,
-  //     orElse: () => '',
-  //   );
-
-  //   return firstNonEmptyPart;
-  // }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:trudd_track_your_buddy/core/components/app_bottom_sheet.dart';
 import 'package:trudd_track_your_buddy/core/components/app_messenger.dart';
+import 'package:trudd_track_your_buddy/core/utils/google_map_helpers.dart';
 import 'package:trudd_track_your_buddy/core/utils/text_styles.dart';
 import 'package:trudd_track_your_buddy/feature/map/presentation/pages/custom_location_page.dart';
 
@@ -58,9 +60,14 @@ class LocationView extends StatelessWidget {
                     context.read<SpotBloc>().add(SetDestinationEvent());
                   },
                   onSecondary: () {
-                    Navigator.pop(context);
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (context) => ScreenCustomLocation()));
+                    MapHelper.getCurrentLocation().then((location) {
+                      Navigator.pop(context);
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (context) => ScreenCustomLocation(
+                          location: location ?? const LatLng(10.1632, 76.6413),
+                        ),
+                      ));
+                    });
                   },
                 );
               },

@@ -27,6 +27,7 @@ class CustomAppBar extends StatelessWidget {
               }
               context.read<SearchBloc>().add(SearchLocationEvent(query: value));
             },
+            
           ),
           const SizedBox(height: 10),
           const Text(

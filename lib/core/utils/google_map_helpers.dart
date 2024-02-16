@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -7,9 +8,12 @@ import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:trudd_track_your_buddy/core/constants/map.dart';
+import 'package:trudd_track_your_buddy/core/constants/keys.dart';
+
+import 'colors.dart';
 
 class MapHelper {
+  static Map<String, Color> colors = {};
   static Future<Uint8List> getBytesFromCanvas(Color color, String text) async {
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
@@ -100,12 +104,39 @@ class MapHelper {
             'longitude': longitude,
           };
         }).toList();
-        print(results);
-        print(results.runtimeType);
         return results;
       }
     }
 
     return [];
+  }
+
+  static Future<Marker> getMarkerIcon(LatLng latLng, String id, String name,
+      {bool isDestination = false, bool isJoiner = true}) async {
+    if (isJoiner) {
+      colors[id] = AppColor.primaryColor;
+    }
+    Color markerColor = colors[id] ?? (colors[id] = getRandomColor());
+    final markerIcon = await getBytesFromCanvas(markerColor, name[0]);
+
+    return Marker(
+      markerId: MarkerId(id),
+      icon: isDestination
+          ? BitmapDescriptor.defaultMarker
+          : BitmapDescriptor.fromBytes(markerIcon),
+      position: latLng,
+    );
+  }
+
+  static Color getRandomColor() {
+    Random random = Random();
+
+    int red = random.nextInt(256);
+    int green = random.nextInt(256);
+    int blue = random.nextInt(256);
+
+    Color randomColor = Color.fromARGB(255, red, green, blue);
+
+    return randomColor;
   }
 }

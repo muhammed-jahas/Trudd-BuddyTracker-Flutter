@@ -1,6 +1,6 @@
-// ignore_for_file: prefer_const_constructors
-
 import 'dart:async';
+import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,7 +9,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:trudd_track_your_buddy/core/components/app_bottom_sheet.dart';
+import 'package:trudd_track_your_buddy/core/components/app_messenger.dart';
+import 'package:trudd_track_your_buddy/core/network/network_url.dart';
 import 'package:trudd_track_your_buddy/core/utils/colors.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../../config/map_theme.dart';
 import '../bloc/joiner_map/joiner_map_bloc.dart';
@@ -26,11 +30,13 @@ class _ScreenJoinerMapViewState extends State<ScreenJoinerMapView> {
   final Completer<GoogleMapController> _controller =
       Completer<GoogleMapController>();
   late StreamSubscription<Position> positionStream;
-
+  late StreamSubscription socketStream;
+  final WebSocketChannel channel = IOWebSocketChannel.connect(webSocketUrl);
   @override
   void initState() {
     super.initState();
-    // startListening(context);
+    listenCurrentLocation(context);
+    listenWebSocket();
   }
 
   @override
@@ -57,9 +63,18 @@ class _ScreenJoinerMapViewState extends State<ScreenJoinerMapView> {
 
   Widget googleMap(BuildContext context) {
     return Expanded(
-      child: BlocBuilder<JoinerMapBloc, JoinerMapState>(
+      child: BlocConsumer<JoinerMapBloc, JoinerMapState>(
+        listenWhen: (previous, current) => current is JoinerMapActionState,
+        buildWhen: (previous, current) => current is! JoinerMapActionState,
+        listener: (BuildContext context, JoinerMapState state) {
+          if (state is JoinerErrorState) {
+            AppMessenger.showFailure(message: state.error, context: context);
+          }
+        },
         builder: (context, state) {
           if (state is PositionSetState) {
+            // log(state.markers.toString());
+            log(state.markers.length.toString());
             return GoogleMap(
               initialCameraPosition: CameraPosition(
                   target: LatLng(state.currentPosition.latitude,
@@ -80,9 +95,12 @@ class _ScreenJoinerMapViewState extends State<ScreenJoinerMapView> {
               zoomControlsEnabled: false,
               zoomGesturesEnabled: true,
               markers: state.markers,
+              polylines: state.polylines,
             );
+          } else if (state is JoinerLoadingState) {
+            return const Center(child: CircularProgressIndicator());
           } else {
-            return Center(child: Text('Failed to Load Map'));
+            return const Center(child: Text('Failed to Load Map'));
           }
         },
       ),
@@ -101,10 +119,21 @@ class _ScreenJoinerMapViewState extends State<ScreenJoinerMapView> {
             icon: Icons.info,
             isFocused: true,
           ),
-          CubeButton(
-            label: 'Joined',
-            onPressed: () {},
-            text: '0',
+          BlocBuilder<JoinerMapBloc, JoinerMapState>(
+            builder: (context, state) {
+              if (state is PositionSetState) {
+                return CubeButton(
+                  label: 'Joined',
+                  text: (state.markers.length - 1).toString(),
+                );
+              } else {
+                return CubeButton(
+                  label: 'Joined',
+                  onPressed: () {},
+                  text: '0',
+                );
+              }
+            },
           ),
           CubeButton(
             label: 'Share',
@@ -115,15 +144,13 @@ class _ScreenJoinerMapViewState extends State<ScreenJoinerMapView> {
           ),
           CubeButton(
             label: 'Exit',
-            onPressed: () {
-              showCustomBottomSheet(
-                  context: context,
-                  title: 'Are you sure\nYou want to exit ?',
-                  onPrimaryText: 'Confirm',
-                  onSecondaryText: 'Cancel',
-                  onPrimary: () {},
-                  onSecondary: () => Navigator.pop(context));
-            },
+            onPressed: () => showCustomBottomSheet(
+                context: context,
+                title: 'Are you sure\nYou want to exit ?',
+                onPrimaryText: 'Confirm',
+                onSecondaryText: 'Cancel',
+                onPrimary: () {},
+                onSecondary: () => Navigator.pop(context)),
             icon: Icons.close_outlined,
           ),
         ],
@@ -131,33 +158,42 @@ class _ScreenJoinerMapViewState extends State<ScreenJoinerMapView> {
     );
   }
 
-  AppBar appBar() {
-    return AppBar(
-      leading: InkWell(
-        child: Icon(
-          Icons.arrow_back,
-          color: AppColor.accentColor,
+  AppBar appBar() => AppBar(
+        leading: InkWell(
+          child: const Icon(Icons.arrow_back, color: AppColor.accentColor),
+          onTap: () {
+            context.read<JoinerMapBloc>().add(ResetJoinerEvent());
+            Navigator.pop(context);
+          },
         ),
-        onTap: () => Navigator.pop(context),
-      ),
-      title: const Text('Calicut'),
-    );
+        title: const Text('Calicut'),
+      );
+
+  void listenCurrentLocation(BuildContext context) {
+    const settings = LocationSettings(distanceFilter: 1);
+    positionStream = Geolocator.getPositionStream(locationSettings: settings)
+        .listen((position) {
+      var currentPosition = LatLng(position.latitude, position.longitude);
+      context
+          .read<JoinerMapBloc>()
+          .add(UpdateLocationEvent(currentPosition: currentPosition));
+    });
   }
 
-  // void startListening(BuildContext context) {
-  //   positionStream = Geolocator.getPositionStream().listen((position) {
-  //     var currentPosition = LatLng(position.latitude, position.longitude);
-  //     print('listening to position');
-  //     context
-  //         .read<JoinerMapBloc>()
-  //         .add(UpdateJoinerLocationEvent(currentPosition: currentPosition));
-  //   });
-  // }
+  void listenWebSocket() {
+    socketStream = channel.stream.listen((rawData) {
+      var data = jsonDecode(rawData);
+      final position = LatLng(data['latitude'], data['longitude']);
+      context
+          .read<JoinerMapBloc>()
+          .add(UpdateMarkerEvent(position: position, joiner: data));
+    });
+  }
 
   @override
   void dispose() {
     super.dispose();
-    print(positionStream);
     positionStream.cancel();
+    socketStream.cancel();
   }
 }

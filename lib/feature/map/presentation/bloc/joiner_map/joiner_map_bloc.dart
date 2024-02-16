@@ -1,9 +1,13 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:trudd_track_your_buddy/core/utils/colors.dart';
+import 'package:trudd_track_your_buddy/core/constants/keys.dart';
 import 'package:trudd_track_your_buddy/core/utils/google_map_helpers.dart';
+import 'package:trudd_track_your_buddy/feature/map/domain/entities/marker_entities.dart';
+import 'package:trudd_track_your_buddy/feature/map/domain/usecases/map_usecase.dart';
 import 'package:trudd_track_your_buddy/feature/room/domain/entities/joniner_entity.dart';
+
+import '../../../../../core/utils/colors.dart';
 
 part 'joiner_map_event.dart';
 part 'joiner_map_state.dart';
@@ -11,55 +15,141 @@ part 'joiner_map_state.dart';
 class JoinerMapBloc extends Bloc<JoinerMapEvent, JoinerMapState> {
   JoinerMapBloc() : super(JoinerMapInitial()) {
     on<SetJoinerEvent>(setJoinerEvent);
-    on<UpdateJoinerLocationEvent>(updateJoinerLocationEvent);
+    on<UpdateLocationEvent>(updateLocation);
+    on<UpdateMarkerEvent>(updateMarker);
+    on<ResetJoinerEvent>(resetJoiner);
   }
+
   late LatLng currentPosition;
-  late JoinerEntity joiner;
+  JoinerEntity? joiner;
+  String? joinerMarkerId;
+  final mapUseCase = MapUseCase();
   Set<Marker> markers = {};
-  Future<void> setJoinerEvent(
-      SetJoinerEvent event, Emitter<JoinerMapState> emit) async {
+  Set<Polyline> polylines = {};
+  // List<LatLng> polyline = [];
+  final polyPoints = PolylinePoints();
+
+  setJoinerEvent(SetJoinerEvent event, Emitter<JoinerMapState> emit) async {
+    emit(JoinerLoadingState());
+    markers.clear();
+    polylines.clear();
     joiner = event.joiner;
-    currentPosition = LatLng(joiner.latitude, joiner.longitude);
-    final currentLocationMarker = await getMarker(
-        currentPosition, joiner.id, joiner.userName, AppColor.primaryColor);
-    final destinationMarker =
-        await getMarker(joiner.spot.destination, 'destination', 'dest');
-    markers.add(currentLocationMarker);
-    markers.add(destinationMarker);
+    late MarkerEntity marker;
+    currentPosition = LatLng(joiner!.latitude, joiner!.longitude);
 
-    emit(PositionSetState(currentPosition: currentPosition, markers: markers));
-  }
+    final failureOrMarker = await mapUseCase.joinSpot({
+      'name': joiner!.userName,
+      'latitude': joiner!.latitude.toString(),
+      'longitude': joiner!.longitude.toString(),
+      'userId': joiner!.id,
+    });
 
-  void updateJoinerLocationEvent(
-      UpdateJoinerLocationEvent event, Emitter<JoinerMapState> emit) async {
-    currentPosition = event.currentPosition;
-    final isMarkerExist =
-        markers.any((element) => element.markerId == MarkerId(joiner.id));
-    if (isMarkerExist) {
-      markers.removeWhere((element) => element.markerId == MarkerId(joiner.id));
-    }
-
-    final marker = await getMarker(
-      event.currentPosition,
-      joiner.id,
-      joiner.userName,
-      AppColor.primaryColor,
+    failureOrMarker.fold((error) {
+      emit(JoinerErrorState(error: error.message));
+      return;
+    }, (markerEntity) {
+      marker = markerEntity;
+      joinerMarkerId = markerEntity.id;
+    });
+    if (joinerMarkerId == null) return;
+    final currentLocationMarker = await MapHelper.getMarkerIcon(
+      currentPosition,
+      joiner!.id,
+      marker.name,
+      isJoiner: true,
+    );
+    final destinationMarker = await MapHelper.getMarkerIcon(
+      joiner!.spot.destination,
+      'destination',
+      'dest',
+      isDestination: true,
     );
 
-    markers.add(marker);
-    emit(PositionSetState(currentPosition: currentPosition, markers: markers));
+    final polyline = await _drawPolyLine(
+        currentPos: currentPosition, dest: joiner!.spot.destination);
+    polylines.add(polyline);
+    markers.add(currentLocationMarker);
+    markers.add(destinationMarker);
+    emit(
+      PositionSetState(
+        currentPosition: currentPosition,
+        markers: markers,
+        polylines: polylines,
+      ),
+    );
   }
 
-  Future<Marker> getMarker(LatLng latLng, String id, String name,
-      [Color? color]) async {
-    final markerIcon = await MapHelper.getBytesFromCanvas(
-        AppColor.primaryColor, joiner.userName[0]);
-    return Marker(
-      markerId: MarkerId(joiner.id),
-      icon: color == null
-          ? BitmapDescriptor.defaultMarker
-          : BitmapDescriptor.fromBytes(markerIcon),
-      position: latLng,
+  void updateLocation(
+      UpdateLocationEvent event, Emitter<JoinerMapState> emit) async {
+    currentPosition = event.currentPosition;
+    if (joinerMarkerId == null) return;
+    final location = {
+      'id': joinerMarkerId,
+      'latitude': event.currentPosition.latitude,
+      'longitude': event.currentPosition.longitude
+    };
+
+    await mapUseCase.updateMarker(location, joinerMarkerId!);
+  }
+
+  Future<void> updateMarker(
+      UpdateMarkerEvent event, Emitter<JoinerMapState> emit) async {
+    final isMarkerExist = markers
+        .any((element) => element.markerId.value == event.joiner['userId']);
+    if (isMarkerExist) {
+      markers.removeWhere(
+          (element) => element.markerId.value == event.joiner['userId']);
+    }
+    final markerIcon = await MapHelper.getMarkerIcon(
+      event.position,
+      event.joiner['userId'],
+      event.joiner['name'],
+    );
+    if (event.joiner['userId'] == joiner!.id) {
+      polylines.clear();
+      final currentpos =
+          LatLng(event.joiner['latitude'], event.joiner['longitude']);
+      final polyline = await _drawPolyLine(
+        currentPos: currentpos,
+        dest: joiner!.spot.destination,
+      );
+      polylines.add(polyline);
+    }
+    markers.add(markerIcon);
+    emit(
+      PositionSetState(
+        currentPosition: currentPosition,
+        markers: markers,
+        polylines: polylines,
+      ),
+    );
+  }
+
+  resetJoiner(ResetJoinerEvent event, Emitter<JoinerMapState> emit) {
+    joiner = null;
+    joinerMarkerId = null;
+  }
+
+  Future<Polyline> _drawPolyLine(
+      {required LatLng currentPos, required LatLng dest}) async {
+    List<LatLng> newRoutes = [];
+    try {
+      final result = await polyPoints.getRouteBetweenCoordinates(
+        googleMapApiKey,
+        PointLatLng(currentPos.latitude, currentPos.longitude),
+        PointLatLng(dest.latitude, dest.longitude),
+      );
+      newRoutes =
+          result.points.map((e) => LatLng(e.latitude, e.longitude)).toList();
+    } catch (e) {
+      newRoutes = [];
+    }
+
+    return Polyline(
+      polylineId: PolylineId(joiner!.id),
+      points: newRoutes,
+      color: AppColor.primaryColor,
+      width: 3,
     );
   }
 }

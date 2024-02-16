@@ -8,8 +8,17 @@ class SetJoinerEvent extends JoinerMapEvent {
   SetJoinerEvent({required this.joiner});
 }
 
-class UpdateJoinerLocationEvent extends JoinerMapEvent {
+class UpdateLocationEvent extends JoinerMapEvent {
   final LatLng currentPosition;
 
-  UpdateJoinerLocationEvent({required this.currentPosition});
+  UpdateLocationEvent({required this.currentPosition});
 }
+
+class UpdateMarkerEvent extends JoinerMapEvent {
+  final LatLng position;
+  final Map<String, dynamic> joiner;
+
+  UpdateMarkerEvent({required this.position, required this.joiner});
+}
+
+class ResetJoinerEvent extends JoinerMapEvent {}
