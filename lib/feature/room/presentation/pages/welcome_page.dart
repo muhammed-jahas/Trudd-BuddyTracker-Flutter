@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:trudd_track_your_buddy/core/utils/text_styles.dart';
 import 'package:trudd_track_your_buddy/feature/room/presentation/pages/option_page.dart';
 
 class ScreenWelcome extends StatelessWidget {
-  const ScreenWelcome({super.key});
+  const ScreenWelcome({Key? key});
 
   @override
   Widget build(BuildContext context) {
@@ -37,15 +39,53 @@ class ScreenWelcome extends StatelessWidget {
             ),
             const SizedBox(height: 25),
             ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pushReplacement(MaterialPageRoute(
-                    builder: (context) => const ScreenOption(),
-                  ));
-                },
-                child: const Text('Get Started')),
+              onPressed: () {
+                _getLocationPermission(context);
+              },
+              child: const Text('Get Started'),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _getLocationPermission(BuildContext context) async {
+    LocationPermission permissionStatus = await Geolocator.checkPermission();
+    if (permissionStatus == LocationPermission.whileInUse ||
+        permissionStatus == LocationPermission.always) {
+      Position position = await Geolocator.getCurrentPosition();
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (context) => const ScreenOption(),
+      ));
+    } else if (permissionStatus == LocationPermission.denied) {
+      LocationPermission newPermissionStatus =
+          await Geolocator.requestPermission();
+      if (newPermissionStatus == LocationPermission.whileInUse ||
+          newPermissionStatus == LocationPermission.always) {
+        Position position = await Geolocator.getCurrentPosition();
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (context) => const ScreenOption(),
+        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Location permission is required.'),
+            action: SnackBarAction(
+              label: 'Open Settings',
+              onPressed: () {
+                openAppSettings();
+              },
+            ),
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location permission is permanently denied.'),
+        ),
+      );
+    }
   }
 }
