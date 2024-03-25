@@ -1,6 +1,6 @@
 // base URL for online
-const baseUrl= 'https://trudd-server.onrender.com';
-const webSocketUrl ='ws://trudd-server.onrender.com';
+const baseUrl= 'https://trudd-server-pvvv.onrender.com';
+const webSocketUrl ='ws://trudd-server-pvvv.onrender.com';
 
 // const webSocketUrl = 'ws://10.4.3.252:3000'
 // const baseUrl = 'http://10.4.3.252:3000';
